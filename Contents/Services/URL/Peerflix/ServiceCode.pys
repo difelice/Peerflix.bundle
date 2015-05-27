@@ -9,124 +9,130 @@ import utils
 import tmdbapi
 
 ################################################################################
+
 RE_MAGNET = re.compile('\?magnet=(.+)$')
 
 ################################################################################
+
+def NormalizeURL(url):
+    return url
+
 def MetadataObjectForURL(url):
-    magnet = String.Unquote(RE_MAGNET.search(url).group(1))
+	magnet = String.Unquote(RE_MAGNET.search(url).group(1))
 
-    json_data = JSON.ObjectFromURL(url, cacheTime=CACHE_1HOUR)
+	url = 'http://brunobasto.local:8888/'
 
-    if json_data and 'magnets' in json_data:
-        for magnet_data in json_data['magnets']:
-            if magnet_data['link'] == magnet:
-                if '/api/movie' in url:
-                    movie_object = MovieObject()
-                    common.fill_movie_object(movie_object, json_data)
-                    movie_object.summary = '{0}\nSeeds: {1} - Peers: {2}\nSize: {3}\n\n{4}'.format(magnet_data['title'], magnet_data['seeds'], magnet_data['peers'], utils.get_magnet_size_str(magnet_data), movie_object.summary)
-                    movie_object.thumb   = Callback(get_image_async, url=json_data['thumb'])
-                    movie_object.art     = Callback(get_image_async, url=json_data['art'])
-                    return movie_object
+	streams = [
+		AudioStreamObject(
+			codec = codec,
+			channels = 2
+		)
+	]
 
-                elif '/api/show' in url:
-                    episode_object = EpisodeObject()
-                    common.fill_episode_object(episode_object, json_data)
-                    episode_object.summary = '{0}\nSeeds: {1} - Peers: {2}\nSize: {3}\n\n{4}'.format(magnet_data['title'], magnet_data['seeds'], magnet_data['peers'], utils.get_magnet_size_str(magnet_data), episode_object.summary)
-                    episode_object.thumb   = Callback(get_image_async, url=json_data['thumb'])
-                    episode_object.art     = Callback(get_image_async, url=json_data['art'])
-                    return episode_object
+	if magnet:
+		return VideoClipObject(
+			title = 'Test',
+			summary = 'Summary',
+			thumb = None,
+			items = [
+				MediaObject(
+					parts = [
+						PartObject(
+							key = HTTPLiveStreamURL(Callback(PlayVideo, url = url)),
+							streams = streams
+						)
+					],
+					audio_channels = 2,
+					optimized_for_streaming = True
+				)
+			]
+		)
 
-    Log.Error('MetadataObjectForURL failed. Aborting.')
-    raise Ex.MediaNotAvailable
+	Log.Error('MetadataObjectForURL failed. Aborting.')
+
+	return Ex.LiveMediaNotStarted
 
 ################################################################################
+
 def MediaObjectsForURL(url):
-    magnet = String.Unquote(RE_MAGNET.search(url).group(1))
+	magnet = String.Unquote(RE_MAGNET.search(url).group(1))
 
-    json_data = JSON.ObjectFromURL(url, cacheTime=CACHE_1HOUR)
+	url = 'http://brunobasto.local:8888/'
 
-    if json_data and 'magnets' in json_data:
-        for magnet_data in json_data['magnets']:
-            if magnet_data['link'] == magnet:
-                if '/api/movie' in url:
-                    download_dir  = Prefs['MOVIES_DOWNLOAD_DIR']
-                elif '/api/show' in url:
-                    download_dir  = Prefs['TVSHOWS_DOWNLOAD_DIR']
+	streams = [
+		AudioStreamObject(
+			codec = codec,
+			channels = 2
+		)
+	]
 
-                if Client.Product == "Plex Web":
-                    look_ahead = 0.0
-                else:
-                    look_ahead = 0.005
+	if magnet:
+		return [
+			MediaObject(
+				parts = [
+					PartObject(
+						key = HTTPLiveStreamURL(Callback(PlayVideo, url = url)),
+						streams = streams
+					)
+				],
+				audio_channels = 2,
+				optimized_for_streaming = True
+			)
+		]
 
-                # mixpanel_data = { 'Client Product': Client.Product }
-                # mixpanel_data = JSON.StringFromObject(mixpanel_data)
-                # mixpanel_data = base64.b64encode(mixpanel_data)
-
-                download_dir = os.path.abspath(download_dir).replace('\\\\?\\', '')
-
-                video_url = peerflix.get_url(magnet_data['link'])
-
-                # video_url = 'video?magnet_link={0}&download_dir={1}&look_ahead={2}&mixpanel_data={3}'.format(String.Quote(magnet_data['link']), String.Quote(download_dir), look_ahead, mixpanel_data)
-                # video_url    = peerflix.get_url('video?magnet_link={0}&download_dir={1}&look_ahead={2}&mixpanel_data={3}'.format(String.Quote(magnet_data['link']), String.Quote(download_dir), look_ahead, mixpanel_data))
-
-                media_object = MediaObject()
-                media_object.add(PartObject(key=Callback(play_torrent_indirect, url=video_url)))
-
-                if title_contains_pattern(magnet_data['title'], ['avi']):
-                    media_object.container = 'avi'
-                elif title_contains_pattern(magnet_data['title'], ['flv']):
-                    media_object.container = 'flv'
-                elif title_contains_pattern(magnet_data['title'], ['mkv']):
-                    media_object.container = 'mkv'
-                elif title_contains_pattern(magnet_data['title'], ['mov']):
-                    media_object.container = 'mov'
-                elif title_contains_pattern(magnet_data['title'], ['mp4']):
-                    media_object.container = 'mp4'
-
-                if title_contains_pattern(magnet_data['title'], ['5.1', '5 1']):
-                    media_object.audio_channels = 6
-
-                if title_contains_pattern(magnet_data['title'], ['aac']):
-                    media_object.audio_codec = 'aac'
-                elif title_contains_pattern(magnet_data['title'], ['ac3']):
-                    media_object.audio_codec = 'ac3'
-                elif title_contains_pattern(magnet_data['title'], ['dts']):
-                    media_object.audio_codec = 'dts'
-                elif title_contains_pattern(magnet_data['title'], ['mp3']):
-                    media_object.audio_codec = 'mp3'
-
-                if title_contains_pattern(magnet_data['title'], ['x264', 'h264']):
-                    media_object.video_codec = 'h264'
-                elif title_contains_pattern(magnet_data['title'], ['divx']):
-                    media_object.video_codec = 'divx'
-                elif title_contains_pattern(magnet_data['title'], ['xvid']):
-                    media_object.video_codec = 'xvid'
-
-                if title_contains_pattern(magnet_data['title'], ['1080p', '1920x1080']):
-                    media_object.video_resolution = 1080
-                elif title_contains_pattern(magnet_data['title'], ['720p', '1280x720']):
-                    media_object.video_resolution = 720
-                elif title_contains_pattern(magnet_data['title'], ['480p']):
-                    media_object.video_resolution = 480
-
-                return [media_object]
-
-    Log.Error('MediaObjectsForURL failed. Aborting.')
-    raise Ex.MediaNotAvailable
+	raise Ex.LiveMediaNotStarted
 
 ###############################################################################
+
 @indirect
-def play_torrent_indirect(url):
-    Log.Info('Play URL ' + url)
+def PlayVideo(url):
+	Log.Info('Playing from Service ' + url)
 
-    return IndirectResponse(VideoClipObject, key=url)
+	url = 'http://brunobasto.local:8888/'
+
+	try:
+		headers = HTTP.Request(url).headers
+	except:
+		raise Ex.MediaGeoblocked
+
+	return IndirectResponse(
+		VideoClipObject,
+		key = HTTPLiveStreamURL(url = url)
+	)
 
 ################################################################################
-def get_image_async(url):
-    return Redirect(url)
+
+def GetHLSStreams(url):
+	streams = []
+
+	playList = HTTP.Request(url).content
+
+	# Parse the m3u8 file to get:
+	# - URL
+	# - Resolution
+	# - Bitrate
+	for line in playList.splitlines():
+		if "BANDWIDTH" in line:
+			stream            = {}
+			stream["bitrate"] = int(Regex('(?<=BANDWIDTH=)[0-9]+').search(line).group(0))
+
+			if "RESOLUTION" in line:
+				stream["resolution"] = int(Regex('(?<=RESOLUTION=)[0-9]+x[0-9]+').search(line).group(0).split("x")[1])
+			else:
+				stream["resolution"] = 0
+
+		elif ".m3u8" in line:
+			path = ''
+
+			if not line.startswith("http"):
+				path = url[ : url.rfind('/') + 1]
+
+			stream["url"] = path + line
+
+			streams.append(stream)
+
+	sorted_streams = sorted(streams, key = lambda stream: stream["bitrate"], reverse = True)
+
+	return sorted_streams
 
 ################################################################################
-def title_contains_pattern(title, pattern_list):
-    for pattern in pattern_list:
-        if pattern.lower() in title.lower():
-            return True

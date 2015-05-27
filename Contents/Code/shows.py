@@ -133,37 +133,160 @@ def season_menu(title, show_title, trakt_slug, season_index):
 
 	if json_data and 'episodes' in json_data:
 		for json_item in json_data['episodes']:
+			episodeTitle = '{0}. {1}'.format(json_item['episode_index'], json_item['title'])
+
 			directory_object = DirectoryObject()
-			directory_object.title   = '{0}. {1}'.format(json_item['episode_index'], json_item['title'])
+			directory_object.title   = episodeTitle
 			directory_object.summary = json_item['overview']
 			directory_object.thumb   = json_item['thumb']
 			directory_object.art     = json_item['art']
-			directory_object.key     = Callback(episode_menu, show_title=show_title, trakt_slug=trakt_slug, season_index=season_index, episode_index=json_item['episode_index'])
-			object_container.add(directory_object)
+			# directory_object.key     = Callback(episode_menu, episodeTitle=episodeTitle, trakt_slug=trakt_slug, season_index=season_index, episode_index=json_item['episode_index'])
+
+			object_container.add(
+				PeerflixEpisodeObject(
+					episodeTitle,
+					trakt_slug,
+					season_index,
+					json_item['episode_index']
+				)
+			)
 
 	return object_container
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/episode', season_index=int, episode_index=int)
-def episode_menu(show_title, trakt_slug, season_index, episode_index):
-	object_container = ObjectContainer()
-
+def PeerflixEpisodeObject(episodeTitle, trakt_slug, season_index, episode_index):
 	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + trakt_slug + '/season/' + str(season_index) + '/episode/' + str(episode_index)
 	json_data = JSON.ObjectFromURL(json_url, cacheTime=CACHE_1HOUR)
 
-	if json_data and 'magnets' in json_data:
-		for json_item in json_data['magnets']:
-			episode_object = EpisodeObject()
-			SharedCodeService.common.fill_episode_object(episode_object, json_data)
-			episode_object.title   = json_item['title']
-			episode_object.summary = 'Seeds: {0} - Peers: {1}\nSize: {2}\n\n{3}'.format(json_item['seeds'], json_item['peers'], SharedCodeService.utils.get_magnet_size_str(json_item), episode_object.summary)
-			episode_object.url     = json_url + '?magnet=' + String.Quote(json_item['link'])
-			object_container.add(episode_object)
+	magnetSeeds = 0
+	magnetIndex = 0
 
-	return object_container
+	if json_data and 'magnets' in json_data:
+		for index, json_item in enumerate(json_data['magnets']):
+			if (json_item['seeds'] > magnetSeeds):
+				magnetIndex = index
+				magnetSeeds = json_item['seeds']
+
+	try:
+		json_item = json_data['magnets'][magnetIndex]
+
+		return CreatePlayableObject(
+			title = episodeTitle,
+			thumb = None,
+			art = None,
+			type = 'hls',
+			url = 'http://peerflix/play' + '?magnet=' + String.Quote(json_item['link'])
+		)
+	except:
+		Log.Debug('Could Parse Magnet {0} in {1}'.format(magnetIndex, json_url))
+
+	return None
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/empty')
 def empty_menu():
 	object_container = ObjectContainer(title2='Empty')
 	return object_container
+
+@route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
+@indirect
+def PlayHLS(url):
+	Log.Debug('host --> ' + SharedCodeService.utils.get_local_host())
+
+	url = 'http://' + SharedCodeService.utils.get_local_host() + ':8888/'
+
+	Log.Info('Playing ' + url)
+
+	# Fix for Plex Web
+	if Client.Product in ['Plex Web'] and Client.Platform not in ['Safari']:
+		return Redirect(url)
+
+	return IndirectResponse(
+		VideoClipObject,
+		key = HTTPLiveStreamURL(url = url)
+	)
+
+@route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
+def CreatePlayableObject(title, thumb, art, type, url, include_container = False):
+	items = []
+
+	codec = 'aac'
+	container = 'flv'
+	bitrate = 320
+	key = HTTPLiveStreamURL(Callback(PlayHLS, url = url))
+
+	streams = [
+		AudioStreamObject(
+			codec = codec,
+			channels = 2
+		)
+	]
+
+	# if title_contains_pattern(magnet_data['title'], ['avi']):
+	# 	container = 'avi'
+	# elif title_contains_pattern(magnet_data['title'], ['flv']):
+	# 	container = 'flv'
+	# elif title_contains_pattern(magnet_data['title'], ['mkv']):
+	# 	container = 'mkv'
+	# elif title_contains_pattern(magnet_data['title'], ['mov']):
+	# 	container = 'mov'
+	# elif title_contains_pattern(magnet_data['title'], ['mp4']):
+	# 	container = 'mp4'
+
+	# if title_contains_pattern(magnet_data['title'], ['5.1', '5 1']):
+	# 	media_object.audio_channels = 6
+
+	# if title_contains_pattern(magnet_data['title'], ['aac']):
+	# 	codec = 'aac'
+	# elif title_contains_pattern(magnet_data['title'], ['ac3']):
+	# 	codec = 'ac3'
+	# elif title_contains_pattern(magnet_data['title'], ['dts']):
+	# 	codec = 'dts'
+	# elif title_contains_pattern(magnet_data['title'], ['mp3']):
+	# 	codec = 'mp3'
+
+	# if title_contains_pattern(magnet_data['title'], ['x264', 'h264']):
+	# 	video_codec = 'h264'
+	# elif title_contains_pattern(magnet_data['title'], ['divx']):
+	# 	video_codec = 'divx'
+	# elif title_contains_pattern(magnet_data['title'], ['xvid']):
+	# 	video_codec = 'xvid'
+
+	items.append(
+		MediaObject(
+			bitrate = bitrate,
+			container = container,
+			audio_codec = codec,
+			audio_channels = 2,
+			optimized_for_streaming = True,
+			parts = [
+				PartObject(
+					key = key,
+					streams = streams
+				)
+			]
+		)
+	)
+	obj = VideoClipObject(  # NOTE! Need to set VCO here instead of TO because of PHT
+		key =
+			Callback(
+				CreatePlayableObject,
+				title = title,
+				thumb = thumb,
+				type = type,
+				art = art,
+				url = url,
+				include_container = True
+			),
+		rating_key = title,
+		title = title,
+		items = items,
+		thumb = thumb,
+		art = art
+	)
+
+	if include_container:
+		return ObjectContainer(objects = [obj])
+	else:
+		return obj
