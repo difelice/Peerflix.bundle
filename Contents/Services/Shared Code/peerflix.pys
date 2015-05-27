@@ -1,31 +1,32 @@
-###############################################################################
-import base64
-import common
-import platform
 import os
-import re
-import stat
-import socket
-import subprocess
+import pipes
 import time
-import utils
 
+from subprocess import Popen, PIPE
 
-def get_url(magnet):
-	command =   [
-		'/usr/local/bin/peerflix',
-		'\'' + magnet + '\'',
-		'--quiet'
-	]
+global proc
+proc = None
 
-	Log.Info(' '.join(command))
+def start(magnet):
+	global proc
 
-	if Platform.OS == 'Windows':
-		DETACHED_PROCESS = 0x00000008
-		process = subprocess.Popen(command, close_fds=True, creationflags=DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
-	else:
-		process = subprocess.Popen(command)
+	Log.Debug('/usr/local/bin/peerflix ' + pipes.quote(magnet) + ' --quiet')
 
-	Log.Info('After!!!!!')
+	try:
+		Log.Debug('Terminate')
+		proc.kill();
+		time.sleep(3)
+	except:
+		Log.Debug('Could not terminate')
 
-	return 'http://192.168.108.51:49484/'
+	proc = Popen(
+		'/usr/local/bin/peerflix ' + pipes.quote(magnet) + ' --quiet -p 8077 -h localhost',
+		stderr = PIPE,
+		stdout = PIPE,
+		env=dict(os.environ, node='/usr/local/bin/node'),
+		shell = True
+	)
+
+	time.sleep(3)
+
+	return None

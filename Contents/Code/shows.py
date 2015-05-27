@@ -1,7 +1,12 @@
-################################################################################
-SUBPREFIX = 'shows'
+import re
 
 ################################################################################
+
+SUBPREFIX = 'shows'
+RE_MAGNET = re.compile('\?magnet=(.+)$')
+
+################################################################################
+
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/menu')
 def menu():
 	object_container = ObjectContainer(title2='TV Shows')
@@ -12,6 +17,7 @@ def menu():
 	return object_container
 
 ################################################################################
+
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/shows', page_index=int)
 def shows_menu(title, page, page_index):
 	object_container = ObjectContainer(title2=title)
@@ -171,12 +177,14 @@ def PeerflixEpisodeObject(episodeTitle, trakt_slug, season_index, episode_index)
 	try:
 		json_item = json_data['magnets'][magnetIndex]
 
+		magnet = json_item['link']
+
 		return CreatePlayableObject(
 			title = episodeTitle,
 			thumb = None,
 			art = None,
 			type = 'hls',
-			url = 'http://peerflix/play' + '?magnet=' + String.Quote(json_item['link'])
+			url = 'http://peerflix/play' + '?magnet=' + String.Quote(magnet)
 		)
 	except:
 		Log.Debug('Could Parse Magnet {0} in {1}'.format(magnetIndex, json_url))
@@ -191,10 +199,13 @@ def empty_menu():
 
 @route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
 @indirect
-def PlayHLS(url):
+def PlayHLS(url, magnet):
 	Log.Debug('host --> ' + SharedCodeService.utils.get_local_host())
 
-	url = 'http://' + SharedCodeService.utils.get_local_host() + ':8888/'
+	# url = 'http://' + SharedCodeService.utils.get_local_host() + ':8077/'
+	url = 'http://localhost:8077/'
+
+	SharedCodeService.peerflix.start(magnet)
 
 	Log.Info('Playing ' + url)
 
@@ -209,12 +220,20 @@ def PlayHLS(url):
 
 @route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
 def CreatePlayableObject(title, thumb, art, type, url, include_container = False):
+	magnet = String.Unquote(RE_MAGNET.search(url).group(1))
+
+	Log.Debug('This is the magnet ' + magnet)
+
 	items = []
 
 	codec = 'aac'
 	container = 'flv'
 	bitrate = 320
-	key = HTTPLiveStreamURL(Callback(PlayHLS, url = url))
+	key = HTTPLiveStreamURL(
+		Callback(
+			PlayHLS, url = url, magnet = magnet
+		)
+	)
 
 	streams = [
 		AudioStreamObject(
