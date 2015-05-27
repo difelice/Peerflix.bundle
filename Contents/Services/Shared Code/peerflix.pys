@@ -1,0 +1,31 @@
+###############################################################################
+import base64
+import common
+import platform
+import os
+import re
+import stat
+import socket
+import subprocess
+import time
+import utils
+
+
+def get_url(magnet):
+	command =   [
+		'/usr/local/bin/peerflix',
+		'\'' + magnet + '\'',
+		'--quiet'
+	]
+
+	Log.Info(' '.join(command))
+
+	if Platform.OS == 'Windows':
+		DETACHED_PROCESS = 0x00000008
+		process = subprocess.Popen(command, close_fds=True, creationflags=DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+	else:
+		process = subprocess.Popen(command)
+
+	Log.Info('After!!!!!')
+
+	return 'http://192.168.108.51:49484/'
