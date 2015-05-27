@@ -1,0 +1,14 @@
+# Importing the module
+import urllib2
+import urllib
+
+def get(url, params = {}, headers = {}):
+	url = url + '&' + urllib.urlencode(params)
+
+	# Create the Request.
+	request = urllib2.Request(url, None, headers)
+
+	# Getting the response
+	response = urllib2.urlopen(request)
+
+	return response.read()
