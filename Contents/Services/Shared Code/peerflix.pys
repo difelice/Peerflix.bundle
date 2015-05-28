@@ -15,18 +15,17 @@ def start(magnet):
 	try:
 		Log.Debug('Terminate')
 		proc.kill();
-		time.sleep(3)
+		time.sleep(4)
 	except:
 		Log.Debug('Could not terminate')
 
 	proc = Popen(
-		'/usr/local/bin/peerflix ' + pipes.quote(magnet) + ' --quiet -p 8077 -h localhost',
+		'/usr/local/bin/peerflix ' + pipes.quote(magnet) + ' -p 8077 -h localhost',
 		stderr = PIPE,
 		stdout = PIPE,
-		env=dict(os.environ, node='/usr/local/bin/node'),
 		shell = True
 	)
 
-	time.sleep(3)
+	time.sleep(5)
 
 	return None
