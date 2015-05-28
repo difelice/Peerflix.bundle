@@ -1,4 +1,5 @@
 import re
+import time
 
 ################################################################################
 
@@ -148,14 +149,17 @@ def season_menu(title, show_title, trakt_slug, season_index):
 			directory_object.art     = json_item['art']
 			# directory_object.key     = Callback(episode_menu, episodeTitle=episodeTitle, trakt_slug=trakt_slug, season_index=season_index, episode_index=json_item['episode_index'])
 
-			object_container.add(
-				PeerflixEpisodeObject(
-					episodeTitle,
-					trakt_slug,
-					season_index,
-					json_item['episode_index']
+			try:
+				object_container.add(
+					PeerflixEpisodeObject(
+						episodeTitle,
+						trakt_slug,
+						season_index,
+						json_item['episode_index']
+					)
 				)
-			)
+			except:
+				continue
 
 	return object_container
 
@@ -187,7 +191,7 @@ def PeerflixEpisodeObject(episodeTitle, trakt_slug, season_index, episode_index)
 			url = 'http://peerflix/play' + '?magnet=' + String.Quote(magnet)
 		)
 	except:
-		Log.Debug('Could Parse Magnet {0} in {1}'.format(magnetIndex, json_url))
+		Log.Debug('Could not parse magnet {0} in {1}'.format(magnetIndex, json_url))
 
 	return None
 
@@ -197,32 +201,36 @@ def empty_menu():
 	object_container = ObjectContainer(title2='Empty')
 	return object_container
 
-@route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
+@route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8', start = bool)
 @indirect
 def PlayHLS(url, magnet):
-	Log.Debug('host --> ' + SharedCodeService.utils.get_local_host())
+	streamURL = ''
 
-	# url = 'http://' + SharedCodeService.utils.get_local_host() + ':8077/'
-	url = 'http://localhost:8077/'
+	try:
+		streamURL = SharedCodeService.peerflix.start(magnet)
 
-	SharedCodeService.peerflix.start(magnet)
+		headers = HTTP.Request(streamURL).headers
+	except:
+		time.sleep(2)
 
-	Log.Info('Playing ' + url)
+		Log.Info('Video is not ready yet, redirecting')
+
+		return IndirectResponse(VideoClipObject, key=Callback(PlayHLS, url=url, magnet = magnet))
+
+	Log.Info('Video Ready! Playing it now.. (' + streamURL + ')')
 
 	# Fix for Plex Web
-	if Client.Product in ['Plex Web'] and Client.Platform not in ['Safari']:
-		return Redirect(url)
+	# if Client.Product in ['Plex Web'] and Client.Platform not in ['Safari']:
+	# 	return Redirect(url)
 
 	return IndirectResponse(
 		VideoClipObject,
-		key = HTTPLiveStreamURL(url = url)
+		key = HTTPLiveStreamURL(url = streamURL)
 	)
 
 @route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
 def CreatePlayableObject(title, thumb, art, type, url, include_container = False):
 	magnet = String.Unquote(RE_MAGNET.search(url).group(1))
-
-	Log.Debug('This is the magnet ' + magnet)
 
 	items = []
 

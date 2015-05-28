@@ -1,31 +1,77 @@
 import os
 import pipes
 import time
+import utils
 
+from random import randint
 from subprocess import Popen, PIPE
 
-global proc
-proc = None
+global processesPool
+processesPool = {}
+
+global urlsPool
+urlsPool = {}
+
+import sys
+from threading  import Thread
+from Queue import Queue, Empty
+
+def logger(out):
+	for line in iter(out.readline, b''):
+		Log.Debug(line)
+	
+	out.close()
 
 def start(magnet):
-	global proc
+	global processesPool
+	global urlsPool
 
-	Log.Debug('/usr/local/bin/peerflix ' + pipes.quote(magnet) + ' --quiet')
+	if magnet in processesPool and processesPool[magnet].is_alive():
+		return urlsPool[magnet]
+
+	port = randint(8000, 9000)
+	host = utils.get_local_host()
 
 	try:
-		Log.Debug('Terminate')
-		proc.kill();
-		time.sleep(4)
+		command = pipes.quote('/usr/local/bin/peerflix "{0}" -p {1} -h {2}'.format(magnet, port, host))
+		url = 'http://{0}:{1}/'.format(host, port)
+
+		Log.Debug('Starting peerflix on url {0} ...'.format(url))
+		Log.Debug(command)
+
+		def startProcess():
+			proc = Popen(
+				command,
+				stderr = PIPE,
+				stdout = PIPE,
+				shell = True
+			)
+
+			stdout_value = proc.communicate()[0]
+			# Log.Debug(repr(stdout_value))
+
+			processesPool[magnet] = proc
+			urlsPool[magnet] = url
+
+			return
+
+		thread = Thread(target = startProcess)
+		thread.start()
+
+		return url
 	except:
-		Log.Debug('Could not terminate')
-
-	proc = Popen(
-		'/usr/local/bin/peerflix ' + pipes.quote(magnet) + ' -p 8077 -h localhost',
-		stderr = PIPE,
-		stdout = PIPE,
-		shell = True
-	)
-
-	time.sleep(5)
+		Log.Exception('Could start peerflix using  port {0} for host {1}'.format(port, host))
 
 	return None
+
+def stop(magnet):
+	global processesPool
+	global urlsPool
+
+	if magnet in processesPool:
+		proc = processesPool[magnet]
+
+		proc.kill();
+
+		del processesPool[magnet]
+		del urlsPool[magnet]
