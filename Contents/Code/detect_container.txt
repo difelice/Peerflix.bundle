@@ -1,0 +1,29 @@
+# if title_contains_pattern(magnet_data['title'], ['avi']):
+	# 	container = 'avi'
+	# elif title_contains_pattern(magnet_data['title'], ['flv']):
+	# 	container = 'flv'
+	# elif title_contains_pattern(magnet_data['title'], ['mkv']):
+	# 	container = 'mkv'
+	# elif title_contains_pattern(magnet_data['title'], ['mov']):
+	# 	container = 'mov'
+	# elif title_contains_pattern(magnet_data['title'], ['mp4']):
+	# 	container = 'mp4'
+
+	# if title_contains_pattern(magnet_data['title'], ['5.1', '5 1']):
+	# 	media_object.audio_channels = 6
+
+	# if title_contains_pattern(magnet_data['title'], ['aac']):
+	# 	codec = 'aac'
+	# elif title_contains_pattern(magnet_data['title'], ['ac3']):
+	# 	codec = 'ac3'
+	# elif title_contains_pattern(magnet_data['title'], ['dts']):
+	# 	codec = 'dts'
+	# elif title_contains_pattern(magnet_data['title'], ['mp3']):
+	# 	codec = 'mp3'
+
+	# if title_contains_pattern(magnet_data['title'], ['x264', 'h264']):
+	# 	video_codec = 'h264'
+	# elif title_contains_pattern(magnet_data['title'], ['divx']):
+	# 	video_codec = 'divx'
+	# elif title_contains_pattern(magnet_data['title'], ['xvid']):
+	# 	video_codec = 'xvid'

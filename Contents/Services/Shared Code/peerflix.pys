@@ -1,10 +1,13 @@
 import os
 import pipes
+import sys
 import time
 import utils
 
+from Queue import Queue, Empty
 from random import randint
 from subprocess import Popen, PIPE
+from threading  import Thread, Event
 
 global processesPool
 processesPool = {}
@@ -12,66 +15,64 @@ processesPool = {}
 global urlsPool
 urlsPool = {}
 
-import sys
-from threading  import Thread
-from Queue import Queue, Empty
-
-def logger(out):
-	for line in iter(out.readline, b''):
-		Log.Debug(line)
-	
-	out.close()
-
 def start(magnet):
 	global processesPool
 	global urlsPool
 
-	if magnet in processesPool and processesPool[magnet].is_alive():
+	if magnet in processesPool:
 		return urlsPool[magnet]
 
 	port = randint(8000, 9000)
 	host = utils.get_local_host()
 
-	try:
-		command = pipes.quote('/usr/local/bin/peerflix "{0}" -p {1} -h {2}'.format(magnet, port, host))
-		url = 'http://{0}:{1}/'.format(host, port)
+	url = 'http://{0}:{1}/'.format(host, port)
 
-		Log.Debug('Starting peerflix on url {0} ...'.format(url))
-		Log.Debug(command)
+	command = [
+		'/usr/local/bin/peerflix',
+		magnet,
+		'-p', str(port),
+		'-h', host
+	]
 
-		def startProcess():
-			proc = Popen(
-				command,
-				stderr = PIPE,
-				stdout = PIPE,
-				shell = True
-			)
+	def startProcess():
+		global processesPool
+		global urlsPool
 
-			stdout_value = proc.communicate()[0]
-			# Log.Debug(repr(stdout_value))
+		try:
+			Log.Debug('Starting peerflix on url {0}'.format(url))
+			Log.Debug(' '.join(command))
+
+			proc = Popen(command)
 
 			processesPool[magnet] = proc
 			urlsPool[magnet] = url
 
-			return
+			result = proc.communicate()
 
-		thread = Thread(target = startProcess)
-		thread.start()
+			Log.Debug(repr(result[0]))
+			Log.Debug(repr(result[1]))
 
-		return url
-	except:
-		Log.Exception('Could start peerflix using  port {0} for host {1}'.format(port, host))
+			Log.Debug('Stopping peerflix on url {0}'.format(url))
 
-	return None
+			stop(magnet)
+		except:
+			Log.Exception('Could not start peerflix using port {0} on host {1}'.format(port, host))
+
+	thread = Thread(target = startProcess)
+	thread.daemon = True
+	thread.start()
+
+	return url
 
 def stop(magnet):
 	global processesPool
 	global urlsPool
 
 	if magnet in processesPool:
-		proc = processesPool[magnet]
-
-		proc.kill();
+		try:
+			processesPool[magnet].kill()
+		except:
+			Log.Exception('Could not kill process')
 
 		del processesPool[magnet]
 		del urlsPool[magnet]

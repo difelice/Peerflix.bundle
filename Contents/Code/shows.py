@@ -1,5 +1,7 @@
 import re
 import time
+import sys
+import urllib
 
 ################################################################################
 
@@ -31,7 +33,7 @@ def shows_menu(title, page, page_index):
 			show_object = TVShowObject()
 			SharedCodeService.common.fill_show_object(show_object, json_item)
 			show_object.rating_key = json_item['trakt_slug']
-			show_object.key        = Callback(show_menu, title=show_object.title, trakt_slug=json_item['trakt_slug'])
+			show_object.key        = Callback(show_menu, title=show_object.title, traktSlug=json_item['trakt_slug'])
 			object_container.add(show_object)
 
 	if (page_index + 1) <= 10:
@@ -42,12 +44,12 @@ def shows_menu(title, page, page_index):
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/favorites')
 def favorites_menu(title):
-	trakt_slugs = Dict['shows_favorites'] if 'shows_favorites' in Dict else []
+	traktSlugs = Dict['shows_favorites'] if 'shows_favorites' in Dict else []
 
 	object_container = ObjectContainer(title2=title)
 
 	json_url = Prefs['SCRAPYARD_URL'] + '/api/shows/favorites?'
-	json_post = { 'shows_favorites': JSON.StringFromObject(trakt_slugs) }
+	json_post = { 'shows_favorites': JSON.StringFromObject(traktSlugs) }
 	json_data = JSON.ObjectFromURL(json_url, values=json_post, cacheTime=CACHE_1HOUR)
 
 	if json_data and 'shows' in json_data:
@@ -55,7 +57,7 @@ def favorites_menu(title):
 			show_object = TVShowObject()
 			SharedCodeService.common.fill_show_object(show_object, json_item)
 			show_object.rating_key = json_item['trakt_slug']
-			show_object.key        = Callback(show_menu, title=show_object.title, trakt_slug=json_item['trakt_slug'])
+			show_object.key        = Callback(show_menu, title=show_object.title, traktSlug=json_item['trakt_slug'])
 			object_container.add(show_object)
 
 	object_container.objects.sort(key=lambda tvshow_object: show_object.title)
@@ -75,98 +77,106 @@ def search_menu(title, query):
 			show_object = TVShowObject()
 			SharedCodeService.common.fill_show_object(show_object, json_item)
 			show_object.rating_key = json_item['trakt_slug']
-			show_object.key        = Callback(show_menu, title=show_object.title, trakt_slug=json_item['trakt_slug'])
+			show_object.key        = Callback(show_menu, title=show_object.title, traktSlug=json_item['trakt_slug'])
 			object_container.add(show_object)
 
 	return object_container
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/tvshow')
-def show_menu(title, trakt_slug):
+def show_menu(title, traktSlug):
 	object_container = ObjectContainer(title2=title)
 
-	if 'shows_favorites' in Dict and trakt_slug in Dict['shows_favorites']:
-		object_container.add(DirectoryObject(key=Callback(remove_from_favorites, title='Remove from Favorites', show_title=title, trakt_slug=trakt_slug), title='Remove from Favorites', summary='Remove TV show from Favorites', thumb=R('favorites.png')))
+	if 'shows_favorites' in Dict and traktSlug in Dict['shows_favorites']:
+		object_container.add(DirectoryObject(key=Callback(remove_from_favorites, title='Remove from Favorites', showTitle=title, traktSlug=traktSlug), title='Remove from Favorites', summary='Remove TV show from Favorites', thumb=R('favorites.png')))
 	else:
-		object_container.add(DirectoryObject(key=Callback(add_to_favorites, title='Add to Favorites', show_title=title, trakt_slug=trakt_slug), title='Add to Favorites', summary='Add TV show to Favorites', thumb=R('favorites.png')))
+		object_container.add(DirectoryObject(key=Callback(add_to_favorites, title='Add to Favorites', showTitle=title, traktSlug=traktSlug), title='Add to Favorites', summary='Add TV show to Favorites', thumb=R('favorites.png')))
 
-	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + trakt_slug
+	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + traktSlug
 	json_data = JSON.ObjectFromURL(json_url, cacheTime=CACHE_1HOUR)
 
 	if json_data and 'seasons' in json_data:
 		for json_item in json_data['seasons']:
 			season_object = SeasonObject()
 			SharedCodeService.common.fill_season_object(season_object, json_item)
-			season_object.rating_key    = '{0}-{1}'.format(trakt_slug, season_object.index)
-			season_object.key           = Callback(season_menu, title=season_object.title, show_title=title, trakt_slug=trakt_slug, season_index=season_object.index)
+			season_object.rating_key    = '{0}-{1}'.format(traktSlug, season_object.index)
+			season_object.key           = Callback(ShowSeason, title=season_object.title, showTitle=title, traktSlug=traktSlug, seasonIndex=season_object.index)
 			object_container.add(season_object)
 
 	return object_container
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/add_to_favorites')
-def add_to_favorites(title, show_title, trakt_slug):
+def add_to_favorites(title, showTitle, traktSlug):
 	if 'shows_favorites' not in Dict:
 		Dict['shows_favorites'] = []
 
-	if trakt_slug not in Dict['shows_favorites']:
-		Dict['shows_favorites'].append(trakt_slug)
+	if traktSlug not in Dict['shows_favorites']:
+		Dict['shows_favorites'].append(traktSlug)
 		Dict.Save()
 
 	object_container = ObjectContainer(title2=title)
 	object_container.header  = 'Add to Favorites'
-	object_container.message = '{0} added to Favorites'.format(show_title)
+	object_container.message = '{0} added to Favorites'.format(showTitle)
 	return object_container
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/remove_from_favorites')
-def remove_from_favorites(title, show_title, trakt_slug):
-	if 'shows_favorites' in Dict and trakt_slug in Dict['shows_favorites']:
-		Dict['shows_favorites'].remove(trakt_slug)
+def remove_from_favorites(title, showTitle, traktSlug):
+	if 'shows_favorites' in Dict and traktSlug in Dict['shows_favorites']:
+		Dict['shows_favorites'].remove(traktSlug)
 		Dict.Save()
 
 	object_container = ObjectContainer(title2=title)
 	object_container.header  = 'Remove from Favorites'
-	object_container.message = '{0} removed from Favorites'.format(show_title)
+	object_container.message = '{0} removed from Favorites'.format(showTitle)
 	return object_container
 
 ################################################################################
-@route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/season', season_index=int)
-def season_menu(title, show_title, trakt_slug, season_index):
+@route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/season', seasonIndex = int)
+def ShowSeason(title, showTitle, traktSlug, seasonIndex):
 	object_container = ObjectContainer(title2=title)
 
-	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + trakt_slug + '/season/' + str(season_index)
+	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + traktSlug + '/season/' + str(seasonIndex)
 	json_data = JSON.ObjectFromURL(json_url, cacheTime=CACHE_1HOUR)
 
 	if json_data and 'episodes' in json_data:
 		for json_item in json_data['episodes']:
-			episodeTitle = '{0}. {1}'.format(json_item['episode_index'], json_item['title'])
+			episodeIndex = json_item['episode_index']
+			episodeTitle = '{0}. {1}'.format(episodeIndex, json_item['title'])
 
-			directory_object = DirectoryObject()
-			directory_object.title   = episodeTitle
-			directory_object.summary = json_item['overview']
-			directory_object.thumb   = json_item['thumb']
-			directory_object.art     = json_item['art']
-			# directory_object.key     = Callback(episode_menu, episodeTitle=episodeTitle, trakt_slug=trakt_slug, season_index=season_index, episode_index=json_item['episode_index'])
+			episodeObject = EpisodeObject()
+			episodeObject.art     = json_item['art']
+			episodeObject.summary = json_item['overview']
+			episodeObject.thumb   = json_item['thumb']
+			episodeObject.title   = episodeTitle
 
-			try:
-				object_container.add(
-					PeerflixEpisodeObject(
-						episodeTitle,
-						trakt_slug,
-						season_index,
-						json_item['episode_index']
-					)
-				)
-			except:
-				continue
+			episodeObject.rating_key = Callback(
+				ShowEpisode,
+				episodeIndex = episodeIndex,
+				episodeTitle = episodeTitle,
+				seasonIndex = seasonIndex,
+				showTitle = showTitle,
+				traktSlug = traktSlug
+			)
+
+			episodeObject.key = Callback(
+				ShowEpisode,
+				episodeIndex = episodeIndex,
+				episodeTitle = episodeTitle,
+				seasonIndex = seasonIndex,
+				showTitle = showTitle,
+				traktSlug = traktSlug
+			)
+
+			object_container.add(episodeObject)
 
 	return object_container
 
 ################################################################################
-@route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/episode', season_index=int, episode_index=int)
-def PeerflixEpisodeObject(episodeTitle, trakt_slug, season_index, episode_index):
-	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + trakt_slug + '/season/' + str(season_index) + '/episode/' + str(episode_index)
+@route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/episode', seasonIndex = int, episodeIndex = int)
+def ShowEpisode(episodeIndex, episodeTitle, seasonIndex, showTitle, traktSlug, includeRelated = False, includeRelatedCount = 0):
+	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + traktSlug + '/season/' + str(seasonIndex) + '/episode/' + str(episodeIndex)
 	json_data = JSON.ObjectFromURL(json_url, cacheTime=CACHE_1HOUR)
 
 	magnetSeeds = 0
@@ -184,14 +194,14 @@ def PeerflixEpisodeObject(episodeTitle, trakt_slug, season_index, episode_index)
 		magnet = json_item['link']
 
 		return CreatePlayableObject(
-			title = episodeTitle,
-			thumb = None,
 			art = None,
-			type = 'hls',
-			url = 'http://peerflix/play' + '?magnet=' + String.Quote(magnet)
+			include_container = True,
+			thumb = None,
+			magnet = magnet,
+			title = episodeTitle
 		)
 	except:
-		Log.Debug('Could not parse magnet {0} in {1}'.format(magnetIndex, json_url))
+		Log.Exception('Could not parse magnet {0} in {1}'.format(magnetIndex, json_url))
 
 	return None
 
@@ -201,45 +211,40 @@ def empty_menu():
 	object_container = ObjectContainer(title2='Empty')
 	return object_container
 
-@route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8', start = bool)
+@route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
 @indirect
-def PlayHLS(url, magnet):
-	streamURL = ''
+def CreatePlayableObject(title, thumb, art, magnet, include_container = False, startedAt = -1):
+	items = []
 
 	try:
-		streamURL = SharedCodeService.peerflix.start(magnet)
+		peerflixInfoURL = SharedCodeService.utils.getPeerflixInfoURL()
+		Log.Debug('Peerflix URL: {0}'.format(peerflixInfoURL))
 
-		headers = HTTP.Request(streamURL).headers
+		postHeaders = { accept: '*/*', 'Content-Type': 'text/plain' }
+		postValues = { 'magnet': magnet }
+
+		peerflixRawData = HTTP.Request(
+			peerflixInfoURL,
+			cacheTime = 0,
+			headers = postHeaders,
+			immediate = True,
+			timeout = 5,
+			data = magnet
+		)
+
+		peerflixData = JSON.ObjectFromString(peerflixRawData.content)
+
+		Log.Debug('Peerflix Data:')
+		Log.Debug(peerflixData)
 	except:
-		time.sleep(2)
-
-		Log.Info('Video is not ready yet, redirecting')
-
-		return IndirectResponse(VideoClipObject, key=Callback(PlayHLS, url=url, magnet = magnet))
-
-	Log.Info('Video Ready! Playing it now.. (' + streamURL + ')')
-
-	# Fix for Plex Web
-	# if Client.Product in ['Plex Web'] and Client.Platform not in ['Safari']:
-	# 	return Redirect(url)
-
-	return IndirectResponse(
-		VideoClipObject,
-		key = HTTPLiveStreamURL(url = streamURL)
-	)
-
-@route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
-def CreatePlayableObject(title, thumb, art, type, url, include_container = False):
-	magnet = String.Unquote(RE_MAGNET.search(url).group(1))
-
-	items = []
+		Log.Exception('Could not retrieve peerflix data')
 
 	codec = 'aac'
 	container = 'flv'
 	bitrate = 320
 	key = HTTPLiveStreamURL(
 		Callback(
-			PlayHLS, url = url, magnet = magnet
+			PlayHLS, magnet = magnet
 		)
 	)
 
@@ -249,36 +254,6 @@ def CreatePlayableObject(title, thumb, art, type, url, include_container = False
 			channels = 2
 		)
 	]
-
-	# if title_contains_pattern(magnet_data['title'], ['avi']):
-	# 	container = 'avi'
-	# elif title_contains_pattern(magnet_data['title'], ['flv']):
-	# 	container = 'flv'
-	# elif title_contains_pattern(magnet_data['title'], ['mkv']):
-	# 	container = 'mkv'
-	# elif title_contains_pattern(magnet_data['title'], ['mov']):
-	# 	container = 'mov'
-	# elif title_contains_pattern(magnet_data['title'], ['mp4']):
-	# 	container = 'mp4'
-
-	# if title_contains_pattern(magnet_data['title'], ['5.1', '5 1']):
-	# 	media_object.audio_channels = 6
-
-	# if title_contains_pattern(magnet_data['title'], ['aac']):
-	# 	codec = 'aac'
-	# elif title_contains_pattern(magnet_data['title'], ['ac3']):
-	# 	codec = 'ac3'
-	# elif title_contains_pattern(magnet_data['title'], ['dts']):
-	# 	codec = 'dts'
-	# elif title_contains_pattern(magnet_data['title'], ['mp3']):
-	# 	codec = 'mp3'
-
-	# if title_contains_pattern(magnet_data['title'], ['x264', 'h264']):
-	# 	video_codec = 'h264'
-	# elif title_contains_pattern(magnet_data['title'], ['divx']):
-	# 	video_codec = 'divx'
-	# elif title_contains_pattern(magnet_data['title'], ['xvid']):
-	# 	video_codec = 'xvid'
 
 	items.append(
 		MediaObject(
@@ -295,15 +270,15 @@ def CreatePlayableObject(title, thumb, art, type, url, include_container = False
 			]
 		)
 	)
-	obj = VideoClipObject(  # NOTE! Need to set VCO here instead of TO because of PHT
+
+	obj = VideoClipObject(
 		key =
 			Callback(
 				CreatePlayableObject,
 				title = title,
 				thumb = thumb,
-				type = type,
 				art = art,
-				url = url,
+				magnet = magnet,
 				include_container = True
 			),
 		rating_key = title,
@@ -317,3 +292,51 @@ def CreatePlayableObject(title, thumb, art, type, url, include_container = False
 		return ObjectContainer(objects = [obj])
 	else:
 		return obj
+
+@route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
+@indirect
+def PlayHLS(magnet, startedAt = -1):
+	startedAt = int(startedAt)
+	streamURL = ''
+
+	try:
+		streamURL = SharedCodeService.peerflix.start(magnet)
+
+		Log.Debug('Checking if server {0} is ready...'.format(streamURL))
+
+		headers = HTTP.Request(streamURL, cacheTime=0, sleep = 2).headers
+	except:
+		Log.Debug('Video is not ready yet, redirecting...')
+
+		time.sleep(2)
+
+		if startedAt is -1:
+			startedAt = int(time.time())
+		elif (int(time.time()) - startedAt) > 30:
+			Log.Debug('Taking too long.. Killing peerflix...')
+
+			SharedCodeService.peerflix.stop(magnet)
+
+			raise Ex.MediaNotAvailable
+		else:
+			Log.Debug(int(time.time()) - startedAt)
+
+		return IndirectResponse(
+			VideoClipObject,
+			key = Callback(
+				PlayHLS,
+				magnet = magnet,
+				startedAt = startedAt
+			)
+		)
+
+	Log.Info('Video Ready! Playing it now.. (' + streamURL + ')')
+
+	# Fix for Plex Web
+	if Client.Product in ['Plex Web'] and Client.Platform not in ['Safari']:
+		return Redirect(url)
+
+	return IndirectResponse(
+		VideoClipObject,
+		key = HTTPLiveStreamURL(url = streamURL)
+	)

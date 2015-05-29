@@ -11,6 +11,9 @@ def get_local_host():
         host = 'localhost'
     return host
 
+def getPeerflixInfoURL():
+    return 'http://{0}:3000'.format(get_local_host())
+
 ###############################################################################
 def try_connection():
     if not Prefs['TORRENT_PROXY_TYPE'] == 'None':
