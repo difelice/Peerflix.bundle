@@ -211,67 +211,81 @@ def empty_menu():
 	object_container = ObjectContainer(title2='Empty')
 	return object_container
 
+def getMagnetMediaContainer(fileJSON):
+	# Default container
+	container = 'flv'
+
+	fileName = fileJSON['name']
+
+	def matchPatterns(string, patterns):
+		for pattern in patterns:
+			if pattern.lower() in string.lower():
+				return True
+
+	if matchPatterns(fileName, ['avi']):
+		container = 'avi'
+	elif matchPatterns(fileName, ['flv']):
+		container = 'flv'
+	elif matchPatterns(fileName, ['mkv']):
+		container = 'mkv'
+	elif matchPatterns(fileName, ['mov']):
+		container = 'mov'
+	elif matchPatterns(fileName, ['mp4']):
+		container = 'mp4'
+
+	return container
+
 @route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
 @indirect
-def CreatePlayableObject(title, thumb, art, magnet, include_container = False, startedAt = -1):
-	items = []
+def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
+	peerflixFiles = []
+	streamURL = SharedCodeService.peerflix.start(magnet)
 
 	try:
-		peerflixInfoURL = SharedCodeService.utils.getPeerflixInfoURL()
-		Log.Debug('Peerflix URL: {0}'.format(peerflixInfoURL))
-
-		postHeaders = { accept: '*/*', 'Content-Type': 'text/plain' }
-		postValues = { 'magnet': magnet }
-
-		peerflixRawData = HTTP.Request(
-			peerflixInfoURL,
-			cacheTime = 0,
-			headers = postHeaders,
-			immediate = True,
-			timeout = 5,
-			data = magnet
-		)
-
-		peerflixData = JSON.ObjectFromString(peerflixRawData.content)
-
-		Log.Debug('Peerflix Data:')
-		Log.Debug(peerflixData)
+		peerflixJSON = JSON.ObjectFromURL(streamURL + '.json', sleep = 2)
+		peerflixFiles = peerflixJSON['files']
 	except:
-		Log.Exception('Could not retrieve peerflix data')
+		raise Ex.MediaNotAvailable
 
+	if (len(peerflixFiles) is 0):
+		raise Ex.MediaNotAvailable
+
+	bitrate = 600
 	codec = 'aac'
-	container = 'flv'
-	bitrate = 320
-	key = HTTPLiveStreamURL(
-		Callback(
-			PlayHLS, magnet = magnet
-		)
-	)
+	container = getMagnetMediaContainer(peerflixFiles[0])
+	items = []
 
-	streams = [
-		AudioStreamObject(
-			codec = codec,
-			channels = 2
-		)
-	]
-
-	items.append(
-		MediaObject(
-			bitrate = bitrate,
-			container = container,
-			audio_codec = codec,
-			audio_channels = 2,
-			optimized_for_streaming = True,
-			parts = [
-				PartObject(
-					key = key,
-					streams = streams
-				)
-			]
-		)
-	)
+	Log.Info('Detected container {0}'.format(container))
 
 	obj = VideoClipObject(
+		art = art,
+		title = title,
+		items = [
+			MediaObject(
+				audio_channels = 2,
+				audio_codec = codec,
+				bitrate = bitrate,
+				container = container,
+				optimized_for_streaming = False,
+				parts = [
+					PartObject(
+						key = HTTPLiveStreamURL(
+							Callback(
+								PlayHLS,
+								magnet = magnet,
+								streamURL = streamURL
+							)
+						),
+						streams = [
+							AudioStreamObject(
+								channels = 2,
+								codec = codec
+							)
+						]
+					)
+				]
+			)
+		],
 		key =
 			Callback(
 				CreatePlayableObject,
@@ -282,10 +296,7 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False, s
 				include_container = True
 			),
 		rating_key = title,
-		title = title,
-		items = items,
-		thumb = thumb,
-		art = art
+		thumb = thumb
 	)
 
 	if include_container:
@@ -295,16 +306,16 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False, s
 
 @route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
 @indirect
-def PlayHLS(magnet, startedAt = -1):
+def PlayHLS(magnet, streamURL, startedAt = -1):
 	startedAt = int(startedAt)
-	streamURL = ''
 
 	try:
-		streamURL = SharedCodeService.peerflix.start(magnet)
-
 		Log.Debug('Checking if server {0} is ready...'.format(streamURL))
 
-		headers = HTTP.Request(streamURL, cacheTime=0, sleep = 2).headers
+		# Play file on index 0
+		headers = HTTP.Request(streamURL + '0', cacheTime=0, sleep = 2).headers
+
+		Log.Debug(headers)
 	except:
 		Log.Debug('Video is not ready yet, redirecting...')
 
@@ -312,7 +323,7 @@ def PlayHLS(magnet, startedAt = -1):
 
 		if startedAt is -1:
 			startedAt = int(time.time())
-		elif (int(time.time()) - startedAt) > 30:
+		elif (int(time.time()) - startedAt) > 60:
 			Log.Debug('Taking too long.. Killing peerflix...')
 
 			SharedCodeService.peerflix.stop(magnet)
@@ -331,10 +342,6 @@ def PlayHLS(magnet, startedAt = -1):
 		)
 
 	Log.Info('Video Ready! Playing it now.. (' + streamURL + ')')
-
-	# Fix for Plex Web
-	if Client.Product in ['Plex Web'] and Client.Platform not in ['Safari']:
-		return Redirect(url)
 
 	return IndirectResponse(
 		VideoClipObject,

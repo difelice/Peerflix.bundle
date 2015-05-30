@@ -22,13 +22,6 @@ def Start():
 	HTTP.CacheTime = CACHE_1HOUR
 	HTTP.Headers['User-agent'] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:22.0) Gecko/20100101 Firefox/22.0"
 
-	def startProcess():
-		proc = Popen('/usr/local/bin/peerflix-info')
-
-	thread = Thread(target = startProcess)
-	thread.daemon = True
-	# thread.start()
-
 ################################################################################
 
 @handler(SharedCodeService.common.PREFIX, TITLE, thumb=ICON, art=ART)
