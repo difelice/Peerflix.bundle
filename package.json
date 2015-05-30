@@ -1,0 +1,29 @@
+{
+  "name": "plex-peerflix-builder",
+  "description": "Builds necessary resource to plex-peerflix.",
+  "version": "0.0.1",
+  "author": {
+    "name": "Bruno Basto",
+    "email": "b.basto@gmail.com",
+    "web": "http://www.brunobasto.com",
+    "twitter": "bbasto"
+  },
+  "license": "BSD",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:brunobasto/node-watermark.git"
+  },
+  "keywords": [
+    "watermark"
+  ],
+  "engines": {
+    "npm": ">=2.0.0",
+    "node": ">=0.12.0"
+  },
+  "dependencies": {
+    "canvas": "^1.2.3",
+    "gifencoder": "^1.0.6",
+    "optimist": "^0.6.1",
+    "rc": "^1.0.3"
+  }
+}
