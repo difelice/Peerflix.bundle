@@ -42,7 +42,10 @@ def start(magnet):
 			Log.Debug('Starting peerflix on url {0}'.format(url))
 			Log.Debug(' '.join(command))
 
-			proc = Popen(command)
+			proc = Popen(command,
+				stderr = PIPE,
+				stdout = PIPE
+			)
 
 			processesPool[magnet] = proc
 			urlsPool[magnet] = url
