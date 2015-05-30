@@ -251,7 +251,7 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 	if (len(peerflixFiles) is 0):
 		raise Ex.MediaNotAvailable
 
-	bitrate = 600
+	bitrate = 720
 	codec = 'aac'
 	container = getMagnetMediaContainer(peerflixFiles[0])
 	items = []
