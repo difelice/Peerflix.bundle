@@ -62,6 +62,8 @@ def start(magnet):
 	thread.daemon = True
 	thread.start()
 
+	time.sleep(3)
+
 	return url
 
 def stop(magnet):
