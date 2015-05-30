@@ -242,9 +242,10 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 	streamURL = SharedCodeService.peerflix.start(magnet)
 
 	try:
-		peerflixJSON = JSON.ObjectFromURL(streamURL + '.json', sleep = 2)
+		peerflixJSON = JSON.ObjectFromURL(streamURL + '.json', cacheTime=0, sleep = 3)
 		peerflixFiles = peerflixJSON['files']
 	except:
+		Log.Exception('Failed get get Peerflix JSON')
 		raise Ex.MediaNotAvailable
 
 	if (len(peerflixFiles) is 0):
