@@ -5,8 +5,8 @@ var Canvas = require('canvas');
 var fs = require('fs');
 
 var VIDEO_DURATION = 5*1000;
-var VIDEO_HEIGHT = 300;
-var VIDEO_WIDTH = 500;
+var VIDEO_HEIGHT = 352;
+var VIDEO_WIDTH = 624;
 
 var canvas = new Canvas(VIDEO_WIDTH, VIDEO_HEIGHT);
 canvas.height = VIDEO_HEIGHT;
