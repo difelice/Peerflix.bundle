@@ -178,31 +178,24 @@ def ShowSeason(title, showTitle, traktSlug, seasonIndex):
 
 	return object_container
 
-def getBestMagnet(magnets):
-	seedsAndPeers = 0
-	indexOfBest = 0
+def getEpisodeMagnet(showTitle, seasonIndex, episodeIndex):
+	for quality in ['hd', 'normal']:
+		for provider in TorrentMediaSearcher.PROVIDERS:
+			try:
+				magnet = TorrentMediaSearcher().request_tv_magnet(provider=provider, show=showTitle, season=seasonIndex, episode=episodeIndex, quality=quality)
 
-	for index, curMagnet in enumerate(magnets):
-		curSeeds = curMagnet['seeds']
-		curSeedsAndPeers = curSeeds + curMagnet['peers']
+				Log.Debug('Found {0} quality magnet from {1} provider.'.format(quality, provider))
 
-		if (curSeeds > 0) and (curSeedsAndPeers > seedsAndPeers):
-			seedsAndPeers = curSeedsAndPeers
-			indexOfBest = index
+				return magnet
+			except:
+				continue
 
-	Log.Info('Best magnet was at position {0}'.format(indexOfBest))
-
-	return magnets[indexOfBest]['link']
+	raise EpisodeNotFound
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/episode', seasonIndex = int, episodeIndex = int)
 def ShowEpisode(episodeIndex, episodeTitle, seasonIndex, showTitle, traktSlug, includeRelated = False, includeRelatedCount = 0):
-	try:
-		magnet = TorrentMediaSearcher().request_tv_magnet(provider='eztv', show=showTitle, season=seasonIndex, episode=episodeIndex, quality='hd')
-
-		# magnet = TorrentMediaSearcher().request_tv_magnet(provider='torrentproject', show=showTitle, season=seasonIndex, episode=episodeIndex, quality='hd')
-	except QualityNotFound:
-		magnet = TorrentMediaSearcher().request_tv_magnet(provider='scrapyard', show=showTitle, season=seasonIndex, episode=episodeIndex, quality='hd')
+	magnet = getEpisodeMagnet(showTitle, seasonIndex, episodeIndex)
 
 	return CreatePlayableObject(
 		art = None,
@@ -212,57 +205,12 @@ def ShowEpisode(episodeIndex, episodeTitle, seasonIndex, showTitle, traktSlug, i
 		title = episodeTitle
 	)
 
-################################################################################
-@route(SharedCodeService.common.PREFIX + '/empty')
-def empty_menu():
-	object_container = ObjectContainer(title2='Empty')
-	return object_container
-
-def getMagnetMediaContainer(fileJSON):
-	# Default container
-	container = 'flv'
-
-	fileName = fileJSON['name']
-
-	def matchPatterns(string, patterns):
-		for pattern in patterns:
-			if pattern.lower() in string.lower():
-				return True
-
-	if matchPatterns(fileName, ['avi']):
-		container = 'avi'
-	elif matchPatterns(fileName, ['flv']):
-		container = 'flv'
-	elif matchPatterns(fileName, ['mkv']):
-		container = 'mkv'
-	elif matchPatterns(fileName, ['mov']):
-		container = 'mov'
-	elif matchPatterns(fileName, ['mp4']):
-		container = 'mp4'
-
-	return container
-
 @route(SharedCodeService.common.PREFIX + '/CreatePlayableObject', include_container = bool)
 @indirect
 def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
-	peerflixFiles = []
-
-	# try:
-	# 	peerflixJSON = JSON.ObjectFromURL(streamURL + '.json', cacheTime=0, sleep = 3)
-	# 	peerflixFiles = peerflixJSON['files']
-	# except:
-	# 	Log.Exception('Failed get get Peerflix JSON')
-	# 	raise Ex.MediaNotAvailable
-
-	# if (len(peerflixFiles) is 0):
-	# 	raise Ex.MediaNotAvailable
-
 	bitrate = 2500
 	codec = 'aac'
-	# container = getMagnetMediaContainer(peerflixFiles[0])
 	items = []
-
-	# Log.Info('Detected container {0}'.format(container))
 
 	obj = VideoClipObject(
 		art = art,
@@ -272,7 +220,6 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 				audio_channels = 2,
 				audio_codec = codec,
 				bitrate = bitrate,
-				# container = container,
 				optimized_for_streaming = False,
 				parts = [
 					PartObject(
@@ -313,8 +260,6 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 @route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
 @indirect
 def PlayHLS(magnet, streamURL = '', startedAt = -1):
-	startedAt = int(startedAt)
-
 	streamURL = SharedCodeService.peerflix.start(magnet)
 
 	try:
@@ -329,6 +274,8 @@ def PlayHLS(magnet, streamURL = '', startedAt = -1):
 
 		time.sleep(2)
 
+		startedAt = int(startedAt)
+
 		if startedAt is -1:
 			startedAt = int(time.time())
 		elif (int(time.time()) - startedAt) > 120:
@@ -337,15 +284,14 @@ def PlayHLS(magnet, streamURL = '', startedAt = -1):
 			SharedCodeService.peerflix.stop(magnet)
 
 			raise Ex.MediaNotAvailable
-		else:
-			Log.Debug(int(time.time()) - startedAt)
 
 		return IndirectResponse(
 			VideoClipObject,
 			key = Callback(
 				PlayHLS,
 				magnet = magnet,
-				startedAt = startedAt
+				startedAt = startedAt,
+				streamURL = streamURL
 			)
 		)
 

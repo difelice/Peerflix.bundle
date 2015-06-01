@@ -17,14 +17,8 @@ class EZTVAPI(BaseAPI):
 
 	def query_tvshow(self, show, season, episode, quality):
 		show_id = self.get_show_id(show=show)
-		magnet = ''
 
-		try:
-			magnet = self.get_magnet_tv(show_id=show_id, show=show, season=season, episode=episode, quality=quality)
-		except:
-			Log.Exception('magnet no found')
-
-		return magnet
+		return self.get_magnet_tv(show_id=show_id, show=show, season=season, episode=episode, quality=quality)
 
 	def query_movie(self, *args):
 		raise RuntimeError('Movies are not supported in the EZTV provider')
@@ -76,11 +70,7 @@ class EZTVAPI(BaseAPI):
 					curSeason = int(regex_result.group(1))
 					curEpisode = int(regex_result.group(2))
 
-					Log.Debug(season)
-					Log.Debug(curSeason)
-
 					if curSeason == season and curEpisode == episode:
-						Log.Debug('Found!')
 						wanted_episode = e
 						break
 
@@ -91,8 +81,6 @@ class EZTVAPI(BaseAPI):
 			raise QualityNotFound('Could not find anything matching the quality: ' + quality)
 
 		magnetLink = wanted_episode.find('..').find('..').xpath('.//a[contains(@class, "magnet")]')
-
-		Log.Debug(magnetLink)
 
 		return magnetLink[0].get('href')
 
