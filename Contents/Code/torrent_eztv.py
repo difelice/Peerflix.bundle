@@ -29,7 +29,7 @@ class EZTVAPI(BaseAPI):
 		terms = show.split(' ')
 
 		try:
-			html = HTML.ElementFromURL(self.URL)
+			html = HTML.ElementFromURL(self.URL, cacheTime = CACHE_1DAY)
 		except requests.ConnectionError:
 			raise LookupError('Could not reach host')
 
