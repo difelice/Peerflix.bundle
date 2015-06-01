@@ -3,12 +3,17 @@ import time
 import sys
 import urllib
 
+from torrent import TorrentMediaSearcher
+from torrent_base import MovieNotFound, EpisodeNotFound, ShowNotFound, QualityNotFound
+
 ################################################################################
 
 SUBPREFIX = 'shows'
 RE_MAGNET = re.compile('\?magnet=(.+)$')
 
 ################################################################################
+
+TorrentMediaSearcher()
 
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/menu')
 def menu():
@@ -173,37 +178,39 @@ def ShowSeason(title, showTitle, traktSlug, seasonIndex):
 
 	return object_container
 
+def getBestMagnet(magnets):
+	seedsAndPeers = 0
+	indexOfBest = 0
+
+	for index, curMagnet in enumerate(magnets):
+		curSeeds = curMagnet['seeds']
+		curSeedsAndPeers = curSeeds + curMagnet['peers']
+
+		if (curSeeds > 0) and (curSeedsAndPeers > seedsAndPeers):
+			seedsAndPeers = curSeedsAndPeers
+			indexOfBest = index
+
+	Log.Info('Best magnet was at position {0}'.format(indexOfBest))
+
+	return magnets[indexOfBest]['link']
+
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/' + SUBPREFIX + '/episode', seasonIndex = int, episodeIndex = int)
 def ShowEpisode(episodeIndex, episodeTitle, seasonIndex, showTitle, traktSlug, includeRelated = False, includeRelatedCount = 0):
-	json_url  = Prefs['SCRAPYARD_URL'] + '/api/show/' + traktSlug + '/season/' + str(seasonIndex) + '/episode/' + str(episodeIndex)
-	json_data = JSON.ObjectFromURL(json_url, cacheTime=CACHE_1HOUR)
-
-	magnetSeeds = 0
-	magnetIndex = 0
-
-	if json_data and 'magnets' in json_data:
-		for index, json_item in enumerate(json_data['magnets']):
-			if (json_item['seeds'] > magnetSeeds):
-				magnetIndex = index
-				magnetSeeds = json_item['seeds']
-
 	try:
-		json_item = json_data['magnets'][magnetIndex]
+		magnet = TorrentMediaSearcher().request_tv_magnet(provider='eztv', show=showTitle, season=seasonIndex, episode=episodeIndex, quality='hd')
 
-		magnet = json_item['link']
+		# magnet = TorrentMediaSearcher().request_tv_magnet(provider='torrentproject', show=showTitle, season=seasonIndex, episode=episodeIndex, quality='hd')
+	except QualityNotFound:
+		magnet = TorrentMediaSearcher().request_tv_magnet(provider='scrapyard', show=showTitle, season=seasonIndex, episode=episodeIndex, quality='hd')
 
-		return CreatePlayableObject(
-			art = None,
-			include_container = True,
-			thumb = None,
-			magnet = magnet,
-			title = episodeTitle
-		)
-	except:
-		Log.Exception('Could not parse magnet {0} in {1}'.format(magnetIndex, json_url))
-
-	return None
+	return CreatePlayableObject(
+		art = None,
+		include_container = True,
+		thumb = None,
+		magnet = magnet,
+		title = episodeTitle
+	)
 
 ################################################################################
 @route(SharedCodeService.common.PREFIX + '/empty')
@@ -239,24 +246,23 @@ def getMagnetMediaContainer(fileJSON):
 @indirect
 def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 	peerflixFiles = []
-	streamURL = SharedCodeService.peerflix.start(magnet)
 
-	try:
-		peerflixJSON = JSON.ObjectFromURL(streamURL + '.json', cacheTime=0, sleep = 3)
-		peerflixFiles = peerflixJSON['files']
-	except:
-		Log.Exception('Failed get get Peerflix JSON')
-		raise Ex.MediaNotAvailable
+	# try:
+	# 	peerflixJSON = JSON.ObjectFromURL(streamURL + '.json', cacheTime=0, sleep = 3)
+	# 	peerflixFiles = peerflixJSON['files']
+	# except:
+	# 	Log.Exception('Failed get get Peerflix JSON')
+	# 	raise Ex.MediaNotAvailable
 
-	if (len(peerflixFiles) is 0):
-		raise Ex.MediaNotAvailable
+	# if (len(peerflixFiles) is 0):
+	# 	raise Ex.MediaNotAvailable
 
-	bitrate = 720
+	bitrate = 2500
 	codec = 'aac'
-	container = getMagnetMediaContainer(peerflixFiles[0])
+	# container = getMagnetMediaContainer(peerflixFiles[0])
 	items = []
 
-	Log.Info('Detected container {0}'.format(container))
+	# Log.Info('Detected container {0}'.format(container))
 
 	obj = VideoClipObject(
 		art = art,
@@ -266,15 +272,14 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 				audio_channels = 2,
 				audio_codec = codec,
 				bitrate = bitrate,
-				container = container,
+				# container = container,
 				optimized_for_streaming = False,
 				parts = [
 					PartObject(
 						key = HTTPLiveStreamURL(
 							Callback(
 								PlayHLS,
-								magnet = magnet,
-								streamURL = streamURL
+								magnet = magnet
 							)
 						),
 						streams = [
@@ -307,8 +312,10 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 
 @route(SharedCodeService.common.PREFIX + '/PlayHLS.m3u8')
 @indirect
-def PlayHLS(magnet, streamURL, startedAt = -1):
+def PlayHLS(magnet, streamURL = '', startedAt = -1):
 	startedAt = int(startedAt)
+
+	streamURL = SharedCodeService.peerflix.start(magnet)
 
 	try:
 		Log.Debug('Checking if server {0} is ready...'.format(streamURL))
@@ -324,7 +331,7 @@ def PlayHLS(magnet, streamURL, startedAt = -1):
 
 		if startedAt is -1:
 			startedAt = int(time.time())
-		elif (int(time.time()) - startedAt) > 60:
+		elif (int(time.time()) - startedAt) > 120:
 			Log.Debug('Taking too long.. Killing peerflix...')
 
 			SharedCodeService.peerflix.stop(magnet)
