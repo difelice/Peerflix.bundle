@@ -200,8 +200,8 @@ def ShowEpisode(episodeIndex, episodeTitle, seasonIndex, showTitle, traktSlug, i
 	return CreatePlayableObject(
 		art = None,
 		include_container = True,
-		thumb = None,
 		magnet = magnet,
+		thumb = None,
 		title = episodeTitle
 	)
 
@@ -210,11 +210,9 @@ def ShowEpisode(episodeIndex, episodeTitle, seasonIndex, showTitle, traktSlug, i
 def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 	bitrate = 2500
 	codec = 'aac'
-	items = []
 
 	obj = VideoClipObject(
 		art = art,
-		title = title,
 		items = [
 			MediaObject(
 				audio_channels = 2,
@@ -249,7 +247,8 @@ def CreatePlayableObject(title, thumb, art, magnet, include_container = False):
 				include_container = True
 			),
 		rating_key = title,
-		thumb = thumb
+		thumb = thumb,
+		title = title
 	)
 
 	if include_container:
