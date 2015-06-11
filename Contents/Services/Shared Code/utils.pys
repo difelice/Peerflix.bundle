@@ -6,7 +6,7 @@ import socks
 def get_local_host():
     host = Network.Hostname
     if not host:
-        host = socket.gethostname()
+        host = socket.gethostbyname(socket.gethostname())
     if not host:
         host = 'localhost'
     return host
